@@ -2,7 +2,7 @@
 //!
 //! See [AuthBearer] for the most commonly-used data structure
 
-use crate::{Rejection, ERR_CHARS, ERR_DEFAULT, ERR_MISSING, ERR_WRONG_BEARER};
+use crate::{into, Rejection, ERR_CHARS, ERR_DEFAULT, ERR_MISSING, ERR_WRONG_BEARER};
 use async_trait::async_trait;
 use axum_core::extract::FromRequestParts;
 use http::{header::AUTHORIZATION, request::Parts, StatusCode};
@@ -27,7 +27,7 @@ use http::{header::AUTHORIZATION, request::Parts, StatusCode};
 /// # Errors
 ///
 /// There are a few errors which this extractor can make. By default, all invalid responses are `400 BAD REQUEST` with one of these messages:
-/// 
+///
 /// - \`Authorization\` header must be a bearer token – Somebody tried to but basic auth here instead of bearer
 /// - \`Authorization\` header is missing – The header was required but it wasn't found
 /// - \`Authorization\` header contains invalid characters – The header couldn't be processed because of invalid characters
@@ -56,42 +56,42 @@ impl AuthBearerCustom for AuthBearer {
 }
 
 /// Custom extractor trait for bearer allowing you to implement custom responses
-/// 
+///
 /// This is enabled via the `auth-bearer` feature
-/// 
+///
 /// # Usage
-/// 
+///
 /// To create your own bearer auth extractor using this crate, you have to:
-/// 
+///
 /// 1. Make the extractor struct, something like `struct Example(String);`
 /// 2. Implement [FromRequestParts] that links to step 3, copy and paste this from the example below
 /// 3. Implement [AuthBearerCustom] to generate your extractor with your custom options, see the example below
-/// 
+///
 /// Once you've completed these steps, you should have a new extractor which is just as easy to use as [AuthBearer] but has all of your custom configuration options inside of it!
-/// 
+///
 /// # Example
-/// 
+///
 /// This is what a typical custom extractor should look like in full, copy-paste this and edit it:
-/// 
+///
 /// ```rust
 /// use async_trait::async_trait;
 /// use axum::extract::FromRequestParts;
 /// use axum_auth::{AuthBearerCustom, Rejection};
 /// use http::{request::Parts, StatusCode};
-/// 
+///
 /// /// Your custom bearer auth returning a fun 418 for errors
 /// struct MyCustomBearerAuth(String);
-/// 
+///
 /// // this is where you define your custom options
 /// impl AuthBearerCustom for MyCustomBearerAuth {
 ///     const ERROR_CODE: StatusCode = StatusCode::IM_A_TEAPOT; // <-- define custom status code here
 ///     const ERROR_OVERWRITE: Option<&'static str> = None; // <-- define overwriting message here
-/// 
+///
 ///     fn from_header(contents: &str) -> Self {
 ///         Self(contents.to_string())
 ///     }
 /// }
-/// 
+///
 /// // this is just boilerplate, copy-paste this
 /// #[async_trait]
 /// impl<B> FromRequestParts<B> for MyCustomBearerAuth
@@ -99,15 +99,15 @@ impl AuthBearerCustom for AuthBearer {
 ///     B: Send + Sync,
 /// {
 ///     type Rejection = Rejection;
-/// 
+///
 ///     async fn from_request_parts(parts: &mut Parts, _: &B) -> Result<Self, Self::Rejection> {
 ///         Self::decode_request_parts(parts)
 ///     }
 /// }
 /// ```
-/// 
+///
 /// Some notes about this example for some more insight:
-/// 
+///
 /// - There's no reason for the [FromRequestParts] to ever change out of this pattern unless you're doing something special
 /// - It's recommended to use the `struct BearerExample(String);` pattern because it makes using it from routes easy
 pub trait AuthBearerCustom: Sized {
@@ -148,9 +148,9 @@ pub trait AuthBearerCustom: Sized {
         let authorization = req
             .headers
             .get(AUTHORIZATION)
-            .ok_or((Self::ERROR_CODE, ERR_MISSING))?
+            .ok_or_else(|| into((Self::ERROR_CODE, ERR_MISSING)))?
             .to_str()
-            .map_err(|_| (Self::ERROR_CODE, ERR_CHARS))?;
+            .map_err(|_| into((Self::ERROR_CODE, ERR_CHARS)))?;
 
         // Check that its a well-formed bearer and return
         let split = authorization.split_once(' ');
@@ -160,7 +160,7 @@ pub trait AuthBearerCustom: Sized {
             // Found empty bearer; sometimes request libraries format them as this
             _ if authorization == "Bearer" => Ok(Self::from_header("")),
             // Found nothing
-            _ => Err((Self::ERROR_CODE, ERR_WRONG_BEARER)),
+            _ => Err(into((Self::ERROR_CODE, ERR_WRONG_BEARER))),
         }
     }
 }

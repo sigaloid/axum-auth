@@ -6,9 +6,9 @@
 //!
 //! - **Basic auth: [AuthBasic]**
 //! - **Bearer auth: [AuthBearer]**
-//! 
+//!
 //! If you need to implement custom errors (i.e., status codes and messages), use these:
-//! 
+//!
 //! - Custom basic auth: [AuthBasicCustom]
 //! - Custom basic auth: [AuthBearerCustom]
 //!
@@ -23,17 +23,19 @@ mod auth_basic;
 mod auth_bearer;
 
 #[cfg(feature = "auth-basic")]
-pub use auth_basic::{AuthBasic,AuthBasicCustom};
+pub use auth_basic::{AuthBasic, AuthBasicCustom};
 #[cfg(feature = "auth-bearer")]
-pub use auth_bearer::{AuthBearer,AuthBearerCustom};
+pub use auth_bearer::{AuthBearer, AuthBearerCustom};
 
+use axum_core::response::Response;
 use http::{header::AUTHORIZATION, request::Parts, StatusCode};
 
 /// Rejection error used in the [AuthBasicCustom] and [AuthBearerCustom] extractors
-pub type Rejection = (StatusCode, &'static str);
+pub type Rejection = Response<String>;
+pub type OldRejection = (StatusCode, &'static str);
 
 /// Default error status code used for the basic extractors
-pub(crate) const ERR_DEFAULT: StatusCode = StatusCode::BAD_REQUEST;
+pub(crate) const ERR_DEFAULT: StatusCode = StatusCode::UNAUTHORIZED;
 
 /// The header is completely missing
 pub(crate) const ERR_MISSING: &str = "`Authorization` header is missing";
@@ -63,7 +65,23 @@ pub(crate) fn get_header(parts: &mut Parts, err_code: StatusCode) -> Result<&str
     parts
         .headers
         .get(AUTHORIZATION)
-        .ok_or((err_code, ERR_MISSING))?
+        .ok_or_else(|| Response::builder()
+            .status(err_code)
+            .header("WWW-Authorization", "Basic")
+            .body(ERR_MISSING.to_string())
+            .unwrap())?
         .to_str()
-        .map_err(|_| (err_code, ERR_CHARS))
+        .map_err(|_| {
+            Response::builder()
+                .status(err_code)
+                .body(ERR_CHARS.to_string())
+                .unwrap()
+        })
+}
+
+pub(crate) fn into(old: OldRejection) -> Rejection {
+    Response::builder()
+        .status(old.0)
+        .body(old.1.to_owned())
+        .unwrap()
 }

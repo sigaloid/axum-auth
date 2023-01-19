@@ -1,3 +1,9 @@
+# Fork of axum-auth
+
+I didn't like the behavior of the `Bad Request` error. It returns the right headers now, to ensure the browser displays a login dialog.
+
+Not totally sure it works with the bearer part, but I don't need that portion of it. :shrug:
+
 # Auth for axum
 
 High-level [http auth](https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication) extractors for [axum](https://github.com/tokio-rs/axum)

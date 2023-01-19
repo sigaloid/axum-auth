@@ -2,7 +2,7 @@
 //!
 //! See [AuthBasic] for the most commonly-used data structure
 
-use crate::{get_header, Rejection, ERR_DECODE, ERR_DEFAULT, ERR_WRONG_BASIC};
+use crate::{get_header, into, Rejection, ERR_DECODE, ERR_DEFAULT, ERR_WRONG_BASIC};
 use async_trait::async_trait;
 use axum_core::extract::FromRequestParts;
 use http::{request::Parts, StatusCode};
@@ -96,7 +96,7 @@ impl AuthBasicCustom for AuthBasic {
 ///         Self(contents)
 ///     }
 /// }
-/// 
+///
 /// // this is just boilerplate, copy-paste this
 /// #[async_trait]
 /// impl<B> FromRequestParts<B> for MyCustomBasicAuth
@@ -156,22 +156,23 @@ pub trait AuthBasicCustom: Sized {
         let split = authorization.split_once(' ');
         match split {
             Some((name, contents)) if name == "Basic" => {
-                let decoded = decode(contents, (Self::ERROR_CODE, ERR_DECODE))?;
+                let decoded = decode(contents, into((Self::ERROR_CODE, ERR_DECODE)))?;
                 Ok(Self::from_header(decoded))
             }
-            _ => Err((Self::ERROR_CODE, ERR_WRONG_BASIC)),
+            _ => Err(into((Self::ERROR_CODE, ERR_WRONG_BASIC))),
         }
     }
 }
 
 /// Decodes the two parts of basic auth using the colon
-fn decode(
-    input: &str,
-    err: Rejection,
-) -> Result<(String, Option<String>), Rejection> {
+fn decode(input: &str, err: Rejection) -> Result<(String, Option<String>), Rejection> {
     // Decode from base64 into a string
-    let decoded = base64::decode(input).map_err(|_| err)?;
-    let decoded = String::from_utf8(decoded).map_err(|_| err)?;
+    let Ok(decoded) = base64::decode(input) else {
+        return Err(err);
+    };
+    let Ok(decoded) = String::from_utf8(decoded) else {
+        return Err(err);
+    };
 
     // Return depending on if password is present
     Ok(if let Some((id, password)) = decoded.split_once(':') {
