@@ -65,11 +65,13 @@ pub(crate) fn get_header(parts: &mut Parts, err_code: StatusCode) -> Result<&str
     parts
         .headers
         .get(AUTHORIZATION)
-        .ok_or_else(|| Response::builder()
-            .status(err_code)
-            .header("WWW-Authorization", "Basic")
-            .body(ERR_MISSING.to_string())
-            .unwrap())?
+        .ok_or_else(|| {
+            Response::builder()
+                .status(err_code)
+                .header(http::header::WWW_AUTHENTICATE, "Basic")
+                .body(ERR_MISSING.to_string())
+                .unwrap()
+        })?
         .to_str()
         .map_err(|_| {
             Response::builder()
